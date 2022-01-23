@@ -4,7 +4,7 @@
 int main(int argc, char** argv) {
 
     if (argc != 2) {
-        printf("usage: rpk_extract.exe <archive.rpk>\n");
+        fprintf(stderr,"usage: rpk_extract.exe <archive.rpk>\n");
     }
 
     rpk_archive *archive;
@@ -13,6 +13,8 @@ int main(int argc, char** argv) {
         perror("Unable to load rpk");
         return -1;
     }
+
+    fprintf(stderr,"%s: archive entry count = %zu\n",argv[0],archive->entry_count);
 
     int extract_status = rpk_extract(archive,NULL);
 

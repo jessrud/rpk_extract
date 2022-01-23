@@ -11,25 +11,33 @@
 #define RPK_EXERR_WRITEENT -3
 #define RPK_EXERR_CDDEST -4
 
-// header entry in an rpk archive. this assumes little endian host
+// header entry in an rpk archive. file is little endian and structure assumes
+// little endian host.
 typedef struct {
     
-    // these are only used on the first record,
-    // but the space is reserved in all records
-    uint32_t _magic;
-    uint32_t _header_length;
-
     char name[RPK_ENT_NAME_SIZ];
     uint32_t offset;
-    uint32_t length;
+    uint32_t size;
+    char _pad0[8];
 } rpk_header_entry;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t size;
+} rpk_preamble;
+
+
 
 // 'parsed' rpk archive header. payload is read from file as needed and file handle
 // is retained for the life of the structure.
 typedef struct {
     FILE *source;
     size_t entry_count;
-    rpk_header_entry header[];
+    
+    struct {
+        rpk_preamble;
+        rpk_header_entry entry[];
+    } header;
 } rpk_archive;
 
 

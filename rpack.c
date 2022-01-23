@@ -11,51 +11,45 @@
 
 // initialize rpk_archive structure from filesystem
 rpk_archive *rpk_load(const char* filename) {
-
-    rpk_header_entry first_entry;
-    FILE *source;
+    
+    rpk_archive temp;
 
     // abort if we cant open the file
-    if ( ( source = fopen(filename, "rb") ) == NULL )
+    if ( ( temp.source = fopen(filename, "rb") ) == NULL )
         return NULL;
 
-    // abort if theres is less than a single entry worth of data to read
-    if ( fread(&first_entry, sizeof (rpk_header_entry), 1, source) < 1 ) goto ERR;
+    // abort if we can't read the preamble
+    if ( fread(&temp.header, sizeof (rpk_preamble), 1, temp.source) < 1 ) goto ERR;
     
     // abort if magic doesn't match
-    if ( first_entry._magic != RPK_FILE_MAGIC ) goto ERR;
+    if ( temp.header.magic != RPK_FILE_MAGIC ) goto ERR;
 
 
     // sanity check; header size should be greater than zero, and evenly divisible by the size of a header
     // entry.
-    if ( ( first_entry._header_length == 0 ) ||
-         ( ( first_entry._header_length % sizeof ( rpk_header_entry ) ) != 0 ) ) goto ERR;
+    if ( ( temp.header.size == 0 ) ||
+         ( ( temp.header.size % sizeof ( rpk_header_entry ) ) != 0 ) ) goto ERR;
+         temp.entry_count = temp.header.size / sizeof ( rpk_header_entry );
      
-    rpk_archive *result = malloc(sizeof (rpk_archive) + first_entry._header_length);
+    rpk_archive *result = malloc(sizeof ( rpk_archive ) + temp.header.size);
 
     // OOM
     if ( result == NULL ) goto ERR;
 
 
-    *result = (rpk_archive) {
-        .source = source,
-        .entry_count = first_entry._header_length / sizeof (rpk_header_entry)
-    };
+    memcpy(result, &temp ,sizeof ( rpk_archive ));
 
-    //reset the file pointer so we just re-read the first record
-    if ( fseek(source,0,SEEK_SET) )
-        goto POST_ALLOC_ERR;
-
-    // read the header into the archive struct, and abort of we read the wrong number of entries.
-    if ( fread(result->header, sizeof (rpk_header_entry), result->entry_count, source) != result->entry_count )
+        // read the header into the archive struct, and abort of we read the wrong number of entries.
+    if ( fread(&result->header.entry, sizeof ( rpk_header_entry ), result->entry_count, temp.source) != result->entry_count )
         goto POST_ALLOC_ERR;
 
     return result;
 
 POST_ALLOC_ERR:
-    free(result);
+    rpk_unload(result);
+    return NULL;
 ERR:
-    fclose(source);
+    fclose(temp.source);
     return NULL;
 }
 
@@ -80,7 +74,7 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
         char namebuf[RPK_ENT_FNAME_SIZ];
 
         memset(namebuf,0,RPK_ENT_FNAME_SIZ);
-        strncpy(namebuf, archive->header[i].name, RPK_ENT_NAME_SIZ);
+        strncpy(namebuf, archive->header.entry[i].name, RPK_ENT_NAME_SIZ);
         strncat(namebuf, RPK_ENT_FNAME_EXT, RPK_ENT_FNAME_EXT_SIZ + 1);
 
         // try to open output file for writing
@@ -92,17 +86,17 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
         }
 
         // abort if we cannot seek to the start of the entry payload in the file
-        if ( fseek(archive->source, archive->header[i].offset, SEEK_SET) ) {
+        if ( fseek(archive->source, archive->header.entry[i].offset, SEEK_SET) ) {
             status = RPK_EXERR_READARCH;
             goto CLEANUP;
         }
 
         // how many read/write operations are required to write the entry to disk based on buffer size
-        uint32_t opcount = archive->header[i].length / BUFSIZ;
+        uint32_t opcount = archive->header.entry[i].size / BUFSIZ;
 
         // if header length isn't evenly divisible by bufsiz, we need one more operation to write the remaining
         // data
-        if ( ( archive->header[i].length % BUFSIZ ) > 0 ) opcount++;
+        if ( ( archive->header.entry[i].size % BUFSIZ ) > 0 ) opcount++;
 
 
         for ( int i = 0; i < opcount; i++ ) {
@@ -137,7 +131,6 @@ CLEANUP:
 // teardown archive structure and free associated memory
 void rpk_unload(rpk_archive* archive) {
     fclose(archive->source);
-    archive->source = NULL;
-    archive->entry_count = 0;
+    memset(archive,0,sizeof (rpk_archive));
     free(archive);
 }
