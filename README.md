@@ -5,10 +5,10 @@ simple tool for extracting records for Examina's .rpk archives
 ## compilation:
 developed and tested using clang64 version 11 under msys2, should work fine with any c99 compiler.
 
-`make rpk_extract.exe`
+`make rpk_extract`
 
 ## usage:
-`rpk_extract.exe <archive>`
+`rpk_extract <archive>`
 
 will extract contents to current directory
 
