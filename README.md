@@ -15,6 +15,8 @@ will extract contents to current directory
 ## notes:
 Haven't actually made sense of the structure of a lot of the data in these archives/databases, but some of them definitely do store direct draw surfaces (I imagine textures) and something with the extension `.rfi`  and some kind of mesh data.
 
+also included in `extra\` is an 010 binary template for the rpk format which more or less tracks the state of the extractor.
+
 If you happen to know anything specific about the structure of this data, feel free to open a discussion in the issue tracker about it.
 
 ----
