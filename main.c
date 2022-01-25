@@ -3,22 +3,21 @@
 
 int main(int argc, char** argv) {
 
-    if (argc != 2) {
-        fprintf(stderr,"usage: rpk_extract.exe <archive.rpk>\n");
+    if ( argc != 2 ) {
+        fprintf(stderr, "usage: rpk_extract.exe <archive.rpk>\n");
     }
 
     rpk_archive *archive;
-
-    if ( (archive = rpk_load(argv[1])) == NULL ) {
+    if ( ( archive = rpk_load(argv[1]) ) == NULL ) {
         perror("Unable to load rpk");
         return -1;
     }
 
-    fprintf(stderr,"%s: archive entry count = %zu\n",argv[0],archive->entry_count);
+    fprintf(stderr, "%s: archive entry count = %zu\n", argv[0], archive->entry_count);
 
-    int extract_status = rpk_extract(archive,NULL);
+    int extract_status = rpk_extract(archive, NULL);
 
-    switch (extract_status) {
+    switch ( extract_status ) {
         case RPK_EXERR_CDDEST:
             perror("Unable to switch to output directory");
             goto CLEANUP;

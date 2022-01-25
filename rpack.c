@@ -1,3 +1,5 @@
+#include "rpack.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -6,8 +8,6 @@
 #include <errno.h>
 #include <limits.h>
 #include <assert.h>
-
-#include "rpack.h"
 
 
 // initialize rpk_archive structure from filesystem
@@ -20,7 +20,7 @@ rpk_archive *rpk_load(const char* filename) {
         return NULL;
 
     // abort if we can't read the preamble
-    if ( fread(&temp.header, sizeof (rpk_preamble), 1, temp.source) < 1 ) goto ERR;
+    if ( fread(&temp.header, sizeof ( rpk_preamble ), 1, temp.source) < 1 ) goto ERR;
     
     // abort if magic doesn't match
     if ( temp.header.magic != RPK_FILE_MAGIC ) goto ERR;
@@ -37,10 +37,10 @@ rpk_archive *rpk_load(const char* filename) {
     // OOM
     if ( result == NULL ) goto ERR;
 
-
+    //copy temp data over to newly allocated archive structure
     memcpy(result, &temp ,sizeof ( rpk_archive ));
 
-        // read the header into the archive struct, and abort of we read the wrong number of entries.
+    // read the header into the archive struct, and abort if we read the wrong number of entries.
     if ( fread(&result->header.entry, sizeof ( rpk_header_entry ), result->entry_count, temp.source) != result->entry_count )
         goto POST_ALLOC_ERR;
 
@@ -56,13 +56,13 @@ ERR:
 
 // read nbytes from source and write them to dest. nbytes should be less than or equal to BUFSIZ, and less than or equal size of readbuf
 int pipe_bytes(FILE *source, FILE *dest, char *readbuf, size_t nbytes) {
-    assert(nbytes <= BUFSIZ);
-    int last_read = fread(readbuf, sizeof (char), nbytes, source);
+    assert( nbytes <= BUFSIZ );
+    int last_read = fread(readbuf, sizeof ( char ), nbytes, source);
             
     if ( last_read != nbytes ) return RPK_EXERR_READARCH;
 
     fflush(dest);
-    int last_write = fwrite(readbuf, sizeof (char), nbytes, dest);
+    int last_write = fwrite(readbuf, sizeof ( char ), nbytes, dest);
 
     if ( last_write != nbytes ) return RPK_EXERR_WRITEENT;
 }
@@ -73,9 +73,9 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
     char pwd[PATH_MAX];
 
     // offset into the archive file where the payload data begins
-    const uint32_t payload_start = archive->header.size + sizeof (rpk_preamble);
+    const uint32_t payload_start = archive->header.size + sizeof ( rpk_preamble );
 
-    if (dest_dir != NULL) {
+    if ( dest_dir != NULL ) {
         getcwd(pwd, PATH_MAX);
 
         if ( chdir(dest_dir) ) {
@@ -89,12 +89,12 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
         // construct an appropriate filename for the entry
         char namebuf[RPK_ENT_FNAME_SIZ];
 
-        memset(namebuf,0,RPK_ENT_FNAME_SIZ);
+        memset(namebuf, 0, RPK_ENT_FNAME_SIZ);
         strncpy(namebuf, archive->header.entry[i].name, RPK_ENT_NAME_SIZ);
         strncat(namebuf, RPK_ENT_FNAME_EXT, RPK_ENT_FNAME_EXT_SIZ + 1);
 
         // try to open output file for writing
-        FILE *output = fopen(namebuf,"wb");
+        FILE *output = fopen(namebuf, "wb");
 
         if ( output == NULL ) {
             status = RPK_EXERR_WRITEENT;
@@ -107,22 +107,22 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
             goto CLEANUP;
         }
 
-
-
         char readbuf[BUFSIZ];
         int bytes_left = archive->header.entry[i].size;
 
-        for (;bytes_left > BUFSIZ; bytes_left -= BUFSIZ) {
+        // write BUFSIZ sized blocks of data from payload to output file
+        for ( ;bytes_left > BUFSIZ; bytes_left -= BUFSIZ ) {
             int result = pipe_bytes(archive->source, output, readbuf, BUFSIZ);
-            if (result < 0) {
+            if ( result < 0 ) {
                 status = result;
                 goto CLEANUP;
             }
             
         }
-        if (bytes_left > 0) {
+        // write any remaining data from payload
+        if ( bytes_left > 0 ) {
             int result = pipe_bytes(archive->source, output, readbuf, bytes_left);
-            if (result < 0) {
+            if ( result < 0 ) {
                 status = result;
                 goto CLEANUP;
             }
@@ -130,7 +130,7 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
     }
 
 CLEANUP:
-    if (dest_dir != NULL) chdir(pwd);
+    if ( dest_dir != NULL ) chdir(pwd);
     return status;
 
 }
@@ -138,6 +138,6 @@ CLEANUP:
 // teardown archive structure and free associated memory
 void rpk_unload(rpk_archive* archive) {
     fclose(archive->source);
-    memset(archive,0,sizeof (rpk_archive));
+    memset(archive, 0, sizeof (rpk_archive));
     free(archive);
 }
