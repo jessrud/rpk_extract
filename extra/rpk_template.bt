@@ -1,0 +1,65 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: ExanimaRPK.bt
+//   Authors: Jesse Rudolph <firstname dot lastname@gmail.com>
+//   Version: 0.0.1 
+//   License: MIT
+//
+//   Description: WIP template for the exanima RPK format
+//------------------------------------------------
+
+// types
+
+typedef struct {
+        char name[16];
+        uint offset <format = hex>;
+        uint length <format = decimal>;
+        char _pad0[8] <hidden = true>;
+} header_entry;
+Assert(sizeof (header_entry) == 32, "Bad size for header_entry type");
+
+
+// preamble
+struct {
+
+    uint magic <format = hex>; 
+        Assert(magic == 0AFBF0C01h, "Bad magic; wrong file type");       
+
+    uint size <format=decimal>;
+} preamble <bgcolor = cRed, name = "Preamble">;
+
+
+
+local uint entry_count = ( preamble.size / sizeof ( header_entry ) );
+
+
+if ( entry_count > 0 ) {
+
+    struct {
+
+    header_entry entry[entry_count]<name="Entry">;
+
+    } header <bgcolor = cBlue, name="Header">; 
+        Assert(sizeof header == preamble.size, "Bad header size");
+
+    local uint payload_start = FTell();
+        Assert(payload_start == sizeof preamble + preamble.size, "Bad header size");
+
+    struct {
+        local int i;
+        for ( i = 0; i < entry_count; i++ ) {
+
+            FSeek(payload_start + header.entry[i].offset);
+
+            struct {
+
+                uint magic <bgcolor = cRed, format = hex>; 
+                    Assert(magic == 3D23AFCFh, "Encountered abnormal payload");
+
+                char data[header.entry[i].length - sizeof magic] <format=hex>;
+
+            } entry<bgcolor = cGreen, name = "Entry">;
+        }
+    } payload <bgcolor = cNone, name="Payload">;
+}
