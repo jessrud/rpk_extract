@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>
+#include <assert.h>
 
 #include "rpack.h"
 
@@ -53,11 +54,26 @@ ERR:
     return NULL;
 }
 
+// read nbytes from source and write them to dest. nbytes should be less than or equal to BUFSIZ, and less than or equal size of readbuf
+int pipe_bytes(FILE *source, FILE *dest, char *readbuf, size_t nbytes) {
+    assert(nbytes <= BUFSIZ);
+    int last_read = fread(readbuf, sizeof (char), nbytes, source);
+            
+    if ( last_read != nbytes ) return RPK_EXERR_READARCH;
+
+    fflush(dest);
+    int last_write = fwrite(readbuf, sizeof (char), nbytes, dest);
+
+    if ( last_write != nbytes ) return RPK_EXERR_WRITEENT;
+}
 
 // expand archive entries to be files on disk. resulting files will have .rent file extension
 int rpk_extract(rpk_archive* archive, const char* dest_dir) {
     int status = 0;
     char pwd[PATH_MAX];
+
+    // offset into the archive file where the payload data begins
+    const uint32_t payload_start = archive->header.size + sizeof (rpk_preamble);
 
     if (dest_dir != NULL) {
         getcwd(pwd, PATH_MAX);
@@ -86,37 +102,28 @@ int rpk_extract(rpk_archive* archive, const char* dest_dir) {
         }
 
         // abort if we cannot seek to the start of the entry payload in the file
-        if ( fseek(archive->source, archive->header.entry[i].offset, SEEK_SET) ) {
+        if ( fseek(archive->source, archive->header.entry[i].offset + payload_start, SEEK_SET) ) {
             status = RPK_EXERR_READARCH;
             goto CLEANUP;
         }
 
-        // how many read/write operations are required to write the entry to disk based on buffer size
-        uint32_t opcount = archive->header.entry[i].size / BUFSIZ;
-
-        // if header length isn't evenly divisible by bufsiz, we need one more operation to write the remaining
-        // data
-        if ( ( archive->header.entry[i].size % BUFSIZ ) > 0 ) opcount++;
 
 
-        for ( int i = 0; i < opcount; i++ ) {
+        char readbuf[BUFSIZ];
+        int bytes_left = archive->header.entry[i].size;
 
-            char *readbuf[BUFSIZ];
-            int last_read = fread(readbuf, 1, BUFSIZ, archive->source);
-            
-            if ( last_read <= 0 ) {
-                status = RPK_EXERR_READARCH;
+        for (;bytes_left > BUFSIZ; bytes_left -= BUFSIZ) {
+            int result = pipe_bytes(archive->source, output, readbuf, BUFSIZ);
+            if (result < 0) {
+                status = result;
                 goto CLEANUP;
             }
-
-            // probably not necessary, but flush output so we always have the entire
-            // buffer to work with
-            fflush(output);
-            int last_write = fwrite(readbuf, 1, last_read, output);
-
-            // if we were unable to write as much data as we read then we give up
-            if ( last_write != last_read ) {
-                status = RPK_EXERR_WRITEENT;
+            
+        }
+        if (bytes_left > 0) {
+            int result = pipe_bytes(archive->source, output, readbuf, bytes_left);
+            if (result < 0) {
+                status = result;
                 goto CLEANUP;
             }
         }
